@@ -17,6 +17,8 @@ Commands:
 
 	!clear 	clears the list
 
+	!off 	turns off the bot
+
 Copyright (c) 2014 Rob Argue (robargue@gmail.com)
 '''
 
@@ -47,6 +49,7 @@ class ScroggleBot:
 		self.update_delay = 2
 		self.last_auto_post = time.time()
 		self.auto_post_delay = 10
+		self.on = True
 
 	def run(self):
 		''' Starts the ScroggleBot		
@@ -54,18 +57,33 @@ class ScroggleBot:
 
 		self.login()
 
-		while True:
+		while self.on:
 			now = time.time()
 			self.update()
 
 			# auto post list
 			if self.list_updated and (time.time() - self.last_auto_post) > self.auto_post_delay:
-				self.postMessage(self.make_list(self.partial_word_list))
+				self.post_message(self.make_list(self.partial_word_list))
 				self.list_updated = False
 				self.last_auto_post = time.time()
 
+			# if time has passed 10 pm
+			last_hour = datetime.fromtimestamp(self.last_update_time).hour
+			curr_hour = datetime.fromtimestamp(now).hour
+			if last_hour < 22 && curr_hour >= 22:
+				self.new_day()
+
 			self.last_update_time = now
 			time.sleep(self.update_delay)
+
+
+	def new_day(self):
+		''' Updates for the new puzzle
+		'''
+
+		self.partial_word_list.clear()
+		self.list_updated = False
+		self.post_message("Good luck all!")
 
 
 	def update(self):
@@ -106,7 +124,7 @@ class ScroggleBot:
 		word_list = ''
 
 		if len(prefs) == 0:
-			word_list = 'list is empty'
+			word_list = 'list is empty '
 
 		for pref in prefs:
 			word_list = word_list + pref[1] + pref[0] + ' '
@@ -134,7 +152,11 @@ class ScroggleBot:
 
 		# !list command - post list
 		if re.search('![Ll]ist', message.text) != None:
-			self.postMessage(self.make_list(self.partial_word_list))
+			self.post_message(self.make_list(self.partial_word_list))
+
+		# !off command - turns off the bot
+		if re.search('![Oo]ff', message.text) != None:
+			self.on = False
 
 		# 1ab commands - add new entries to the word list
 		entries = re.findall('[1-9]+[a-zA-Z]{2}', message.text)
@@ -170,7 +192,7 @@ class ScroggleBot:
 		return urllib.urlopen(url)
 	
 	
-	def postMessage(self, text):
+	def post_message(self, text):
 		''' Posts a message to the site
 
 		Arguments:
