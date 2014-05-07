@@ -19,6 +19,10 @@ Commands:
 
 	!off 	turns off the bot
 
+	!lock 	locks the list
+
+	!unlock unlocks the list
+
 Copyright (c) 2014 Rob Argue (robargue@gmail.com)
 '''
 
@@ -36,6 +40,13 @@ class ScroggleBot:
 	'''
 
 	def __init__(self, user_name, password):
+		''' Constructor for ScroggleBot
+
+		Arguments:
+			user_name - User name to log in with
+			password  - Password to log in with
+		'''
+
 		self.partial_word_list = {}
 		self.official_word_list = None
 		self.last_message_processed = None
@@ -50,6 +61,7 @@ class ScroggleBot:
 		self.last_auto_post = time.time()
 		self.auto_post_delay = 10
 		self.on = True
+		self.locked = False
 
 	def run(self):
 		''' Starts the ScroggleBot		
@@ -69,8 +81,11 @@ class ScroggleBot:
 
 			# if time has passed 10 pm
 			last_hour = datetime.fromtimestamp(self.last_update_time).hour
+			last_min = datetime.fromtimestamp(self.last_update_time).min
 			curr_hour = datetime.fromtimestamp(now).hour
-			if last_hour < 22 && curr_hour >= 22:
+			curr_min = datetime.fromtimestamp(now).minute
+
+			if last_hour == 22 and last_min == 0 and curr_hour == 22 and curr_min > 0:
 				self.new_day()
 
 			self.last_update_time = now
@@ -83,6 +98,7 @@ class ScroggleBot:
 
 		self.partial_word_list.clear()
 		self.list_updated = False
+		self.locked = False
 		self.post_message("Good luck all!")
 
 
@@ -145,6 +161,13 @@ class ScroggleBot:
 			print 'Time: ', message.time
 			print 'Text: ', message.text
 
+		# some pleasantries
+		if re.search('([Hh]i|[Hh]ello) ([Ss]croggle)?[Bb]ot', message.text):
+			self.post_message('Hi ' + message.user)
+
+		if re.search('^([Ff]inished|[Dd]one)', message.text):
+			self.post_message('Congrats '  + message.user)
+
 		# !clear command - clear list
 		if re.search('![Cc]lear', message.text) != None:
 			self.partial_word_list.clear()
@@ -158,21 +181,30 @@ class ScroggleBot:
 		if re.search('![Oo]ff', message.text) != None:
 			self.on = False
 
-		# 1ab commands - add new entries to the word list
-		entries = re.findall('[1-9]+[a-zA-Z]{2}', message.text)
+		# !lock command - locks the list
+		if re.search('![Ll]ock', message.text) != None:
+			self.locked = True
 
-		for ent in entries:
-			if ent[-2:] not in self.partial_word_list or ent[:-2] != self.partial_word_list[ent[-2:]]:
-				self.partial_word_list[ent[-2:]] = ent[:-2]
-				self.list_updated = True
+		# !unlock command - unlocks the list
+		if re.search('![Uu]nlock', message.text) != None:
+			self.locked = False
 
-		# -ab commands - remove entries from the word list
-		removals = re.findall('\-[a-zA-Z]{2}', message.text)
+		if not self.locked:
+			# 1ab commands - add new entries to the word list
+			entries = re.findall('[0-9]+[a-zA-Z]{2}', message.text)
 
-		for rem in removals:
-			if self.partial_word_list.has_key(rem[-2:]):
-				del self.partial_word_list[rem[-2:]]
-				self.list_updated = True
+			for ent in entries:
+				if ent[-2:] not in self.partial_word_list or ent[:-2] != self.partial_word_list[ent[-2:]]:
+					self.partial_word_list[ent[-2:]] = ent[:-2]
+					self.list_updated = True
+
+			# -ab commands - remove entries from the word list
+			removals = re.findall('$\-[a-zA-Z]{2}', message.text)
+
+			for rem in removals:
+				if self.partial_word_list.has_key(rem[-2:]):
+					del self.partial_word_list[rem[-2:]]
+					self.list_updated = True
 
 	
 	def getMessageHTML(self):
