@@ -23,6 +23,10 @@ Commands:
 
 	!unlock unlocks the list
 
+	!mute 	mutes the bot
+
+	!unmute unmutes the bot
+
 Copyright (c) 2014 Rob Argue (robargue@gmail.com)
 '''
 
@@ -62,6 +66,7 @@ class ScroggleBot:
 		self.auto_post_delay = 10
 		self.on = True
 		self.locked = False
+		self.mute = True
 
 	def run(self):
 		''' Starts the ScroggleBot		
@@ -81,7 +86,7 @@ class ScroggleBot:
 
 			# if time has passed 10 pm
 			last_hour = datetime.fromtimestamp(self.last_update_time).hour
-			last_min = datetime.fromtimestamp(self.last_update_time).min
+			last_min = datetime.fromtimestamp(self.last_update_time).minute
 			curr_hour = datetime.fromtimestamp(now).hour
 			curr_min = datetime.fromtimestamp(now).minute
 
@@ -99,6 +104,7 @@ class ScroggleBot:
 		self.partial_word_list.clear()
 		self.list_updated = False
 		self.locked = False
+		self.mute = False
 		self.post_message("Good luck all!")
 
 
@@ -107,11 +113,16 @@ class ScroggleBot:
 		'''
 
 		# grab the messages out of chat
-		chat = self.getMessageHTML()
-		parser = SBHTMLParser()
-		parser.feed(chat.read())
-		chat.close()
-		messages = parser.get_messages()
+		chat = self.get_message_html()
+
+		# if chat was fetched properly
+		if chat != None:
+			parser = SBHTMLParser()
+			parser.feed(chat.read())
+			chat.close()
+			messages = parser.get_messages()
+		else:
+			messages = []
 
 		# process all new messages
 		for i in range(len(messages)):
@@ -121,7 +132,8 @@ class ScroggleBot:
 			else:
 				self.process_message(messages[i])
 
-		self.last_message_processed = messages[0]
+		if len(messages) > 0:
+			self.last_message_processed = messages[0]
 
 
 	def make_list(self, word_list):
@@ -189,6 +201,14 @@ class ScroggleBot:
 		if re.search('![Uu]nlock', message.text) != None:
 			self.locked = False
 
+		# !mute command - mutes the bot
+		if re.search('![Mm]ute', message.text) != None:
+			self.mute = True
+
+		# !unmute command - unmutes the bot
+		if re.search('![Uu]nmute', message.text) != None:
+			self.mute = False
+
 		if not self.locked:
 			# 1ab commands - add new entries to the word list
 			entries = re.findall('[0-9]+[a-zA-Z]{2}', message.text)
@@ -199,7 +219,7 @@ class ScroggleBot:
 					self.list_updated = True
 
 			# -ab commands - remove entries from the word list
-			removals = re.findall('$\-[a-zA-Z]{2}', message.text)
+			removals = re.findall('\-[a-zA-Z]{2}', message.text)
 
 			for rem in removals:
 				if self.partial_word_list.has_key(rem[-2:]):
@@ -207,7 +227,7 @@ class ScroggleBot:
 					self.list_updated = True
 
 	
-	def getMessageHTML(self):
+	def get_message_html(self):
 		''' Pulls the HTML for the message list from the site
 
 		Returns:
@@ -221,8 +241,12 @@ class ScroggleBot:
 		url = url + '&numRows=' + str(numRows)
 		url = url + '&lastMessageDate=' + str(lastMessageDate)
 		url = url + '&Time=' + time
-		return urllib.urlopen(url)
-	
+
+		try:
+			return urllib.urlopen(url)
+		except IOError:
+			print 'Failed to open (getMessageHTML)'
+			return None
 	
 	def post_message(self, text):
 		''' Posts a message to the site
@@ -231,18 +255,22 @@ class ScroggleBot:
 			text - Message text to post
 		'''
 
-		# max length cutoff to match the javascript
-		if len(text) > 300:
-			text = text[:300]
+		if not self.mute:
 
-		time = self.GMTString()
+			# max length cutoff to match the javascript
+			if len(text) > 300:
+				text = text[:300]
 
-		url = self.base_url + '/Chat/submitMessage.aspx?CR=1'
-		url = url + '&time=' + urllib.quote(time)
-		url = url + '&message=' + urllib.quote(text)
+			time = self.GMTString()
 
-		self.browser.open(url)
+			url = self.base_url + '/Chat/submitMessage.aspx?CR=1'
+			url = url + '&time=' + urllib.quote(time)
+			url = url + '&message=' + urllib.quote(text)
 
+			try:
+				self.browser.open(url)
+			except IOError:
+				print 'Failed to open (post_message)'
 	
 	def login(self):
 		''' Logs onto the site

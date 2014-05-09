@@ -1,6 +1,9 @@
 mechanize-0.2.5/
-sbDriver*
-wordlist*
+sbDriver.py
+*.txt
+
+# I was told to not post this
+ScroggleSolver.py
 
 #############
 ## Python
