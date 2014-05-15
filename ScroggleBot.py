@@ -38,6 +38,7 @@ from datetime import datetime
 import re
 import urllib
 import mechanize
+import json
 
 class ScroggleBot:
 	''' Main class for the the ScorggleBot
@@ -67,6 +68,14 @@ class ScroggleBot:
 		self.on = True
 		self.locked = False
 		self.mute = True
+		try:
+			nick_file = open('nicknames.json', 'r')
+			self.nicknames = json.load(nick_file)
+			nick_file.close()
+		except:
+			self.nicknames = {}
+			print 'Error loading nicknames'
+
 
 	def run(self):
 		''' Starts the ScroggleBot		
@@ -87,10 +96,12 @@ class ScroggleBot:
 			# if time has passed 10 pm
 			last_hour = datetime.fromtimestamp(self.last_update_time).hour
 			last_min = datetime.fromtimestamp(self.last_update_time).minute
+			last_sec = datetime.fromtimestamp(self.last_update_time).second
 			curr_hour = datetime.fromtimestamp(now).hour
 			curr_min = datetime.fromtimestamp(now).minute
+			curr_sec = datetime.fromtimestamp(now).second
 
-			if last_hour == 22 and last_min == 0 and curr_hour == 22 and curr_min > 0:
+			if curr_hour == 22 and curr_min == 0 and last_sec < 30 and curr_sec >= 30:
 				self.new_day()
 
 			self.last_update_time = now
@@ -117,10 +128,13 @@ class ScroggleBot:
 
 		# if chat was fetched properly
 		if chat != None:
-			parser = SBHTMLParser()
-			parser.feed(chat.read())
-			chat.close()
-			messages = parser.get_messages()
+			try:
+				parser = SBHTMLParser()
+				parser.feed(chat.read())
+				chat.close()
+				messages = parser.get_messages()
+			except:
+				messages = []
 		else:
 			messages = []
 
@@ -135,6 +149,18 @@ class ScroggleBot:
 		if len(messages) > 0:
 			self.last_message_processed = messages[0]
 
+	def nickname(self, username, nick):
+		''' Records a nickname for a user
+
+		Arguments:
+			username - user to add a nickname for
+			nick     - nickname to give the user
+		'''
+		
+		self.nicknames[username] = nick
+		nick_file = open('nicknames.json', 'w')
+		json.dump(self.nicknames, nick_file)
+		nick_file.close()
 
 	def make_list(self, word_list):
 		''' Creates a string representaion of a word list
@@ -167,18 +193,29 @@ class ScroggleBot:
 			message - Message object to process	
 		'''
 
+		if message.user in self.nicknames:
+			user = self.nicknames[message.user]
+		else:
+			user = message.user
+
 		# debug printout of the message
 		if self.DEBUG:
-			print 'User: ', message.user
-			print 'Time: ', message.time
-			print 'Text: ', message.text
+			print '----Processing message:'
+			print '      User: ', message.user
+			print '      Time: ', message.time
+			print '      Text: ', message.text
+			print ''
 
 		# some pleasantries
-		if re.search('([Hh]i|[Hh]ello) ([Ss]croggle)?[Bb]ot', message.text):
-			self.post_message('Hi ' + message.user)
+		if re.search('([Hh]i|[Hh]ello) .*([Ss]croggle)?[Bb]ot\s?', message.text):
+			self.post_message('Hi ' + user)
 
 		if re.search('^([Ff]inished|[Dd]one)', message.text):
-			self.post_message('Congrats '  + message.user)
+			self.post_message('Congrats ' + user)
+
+		if re.search('([Tt][Yy]|[Th]ank).*([Ss]croggle)?[Bb]ot\s?', message.text):
+			self.post_message('You\'re welcome ' + user)
+			
 
 		# !clear command - clear list
 		if re.search('![Cc]lear', message.text) != None:
@@ -215,6 +252,9 @@ class ScroggleBot:
 
 			for ent in entries:
 				if ent[-2:] not in self.partial_word_list or ent[:-2] != self.partial_word_list[ent[-2:]]:
+					if self.DEBUG:
+						print '    Adding ' + ent[:-2] + ent[-2:] + ' to list'
+
 					self.partial_word_list[ent[-2:]] = ent[:-2]
 					self.list_updated = True
 
@@ -223,6 +263,9 @@ class ScroggleBot:
 
 			for rem in removals:
 				if self.partial_word_list.has_key(rem[-2:]):
+					if self.DEBUG:
+						print '    Removing ' + rem[:-2] + rem[-2:] + ' from list'
+
 					del self.partial_word_list[rem[-2:]]
 					self.list_updated = True
 
@@ -254,6 +297,11 @@ class ScroggleBot:
 		Arguments:
 			text - Message text to post
 		'''
+
+		if self.DEBUG:
+			print '++++Sending message: ' + ('(muted)' if self.mute else '')
+			print '      '  + text
+			print ''
 
 		if not self.mute:
 
@@ -292,8 +340,6 @@ class ScroggleBot:
 		'''
 		
 		return datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
-
-
 
 
 class SBHTMLParser(HTMLParser):
