@@ -210,12 +210,14 @@ class ScroggleBot:
 		if re.search('([Hh]i|[Hh]ello) .*([Ss]croggle)?[Bb]ot\s?', message.text):
 			self.post_message('Hi ' + user)
 
-		if re.search('^([Ff]inished|[Dd]one)', message.text):
+		if re.search('^([Ff][Ii][Nn][Ii][Ss][Hh][Ee][Dd]|[Dd][Oo][Nn][Ee])', message.text):
 			self.post_message('Congrats ' + user)
 
 		if re.search('([Tt][Yy]|[Th]ank).*([Ss]croggle)?[Bb]ot\s?', message.text):
 			self.post_message('You\'re welcome ' + user)
-			
+		
+		if re.search('([Gg]ood)?[Nn]ight .*([Ss]croggle)?[Bb]ot\s?', message.text):
+			self.post_message('Goodnight ' + user)
 
 		# !clear command - clear list
 		if re.search('![Cc]lear', message.text) != None:
@@ -223,7 +225,7 @@ class ScroggleBot:
 			self.list_updated = True
 
 		# !list command - post list
-		if re.search('![Ll]ist', message.text) != None:
+		if re.search('(^[Ll]$)|(![Ll]ist)', message.text) != None:
 			self.post_message(self.make_list(self.partial_word_list))
 
 		# !off command - turns off the bot
@@ -245,6 +247,11 @@ class ScroggleBot:
 		# !unmute command - unmutes the bot
 		if re.search('![Uu]nmute', message.text) != None:
 			self.mute = False
+
+		# !nick command - changes your nickname
+		if re.search('![Nn]ick', message.text) != None:
+			sp = ' '
+			self.nickname(message.user, sp.join(message.text.split()[1:]))
 
 		if not self.locked:
 			# 1ab commands - add new entries to the word list
